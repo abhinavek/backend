@@ -1,3 +1,4 @@
+var ObjectId = require('mongodb').ObjectId;
 const express = require('express');
 const db = import("../db/connection.mjs");
 const router = express.Router();
@@ -27,4 +28,10 @@ router.get("/latest", async (req, res) => {
     res.send(results).status(200);
 });
 
+router.get('/:id', async (req, res) => {
+    let collection = (await db).default.collection("posts");
+    let results = await collection.find({_id:new
+        ObjectId(req.params.id)}).toArray();
+    res.send(results).status(200);
+})
 module.exports = router;
