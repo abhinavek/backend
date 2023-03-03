@@ -1,10 +1,9 @@
-var ObjectId = require('mongodb').ObjectId;
+const ObjectId = require('mongodb').ObjectId;
 const express = require('express');
 const db = import("../db/connection.mjs");
 const router = express.Router();
 const multer  = require('multer')
 const base_url = process.env.base_url || 'http://localhost:3000'
-let fileName = ''
 
 let storage = multer.diskStorage(
     {
@@ -70,12 +69,65 @@ router.get("/latest", async (req, res) => {
 
 router.get('/:id', async (req, res) => {
     let collection = (await db).default.collection("posts");
-    let results = await collection.find({_id:new ObjectId(req.params.id)}).toArray();
+    let results = await collection.aggregate([
+        {"$match":{_id:new ObjectId(req.params.id)}},
+        {
+            $lookup: {
+                from: "users",
+                localField: "_id.str",
+                foreignField: "author_id",
+                as: "user",
+            },
+        },
+        {
+            $project: {
+                _id: 1,
+                title: 1,
+                content: 1,
+                image: 1,
+                author_id: 1,
+                //"author_id":"$user._id",
+                author_first_name:"$user.first_name",
+                author_last_name:"$user.last_name",
+                author_avatar:"$user.avatar",
+
+                date: 1,
+            },
+        },]).toArray();
     res.send(results).status(200);
 })
 
+router.put('/update',async (req,res) => {
+    let collection = (await db).default.collection('posts')
+    console.log("id",req.body._id)
+    console.log("object id",new ObjectId(req.body._id))
+    collection.updateOne(
+        {_id:new ObjectId(req.body._id)},
+        {
+            $set:
+                {
+                    title:req.body.title,
+                    content:req.body.content,
+                    image:req.body.image,
+                }
+        }
+    )
+        .then(result=>res.send(result))
+        .catch(e=>{
+            console.log(e)
+            res.send(e).status(500)
+        })
+
+})
+
+router.delete('/',async function (req, res) {
+    let collection = (await db).default.collection('posts')
+    await collection.deleteOne({_id: new ObjectId(req.body._id)}).then(result=>{
+        res.send(result).status(200)
+    }).catch(e=>res.send(e).status(500))
+})
+
 router.post('/upload', upload.single('file'),function (req, res) {
-    let fileName = `${new Date().getTime()}.${req.file.mimetype.split('/')[1]}`
     res.send({status:"success",link:`${base_url}/data/uploads/${req.file.filename}`})
 });
 
