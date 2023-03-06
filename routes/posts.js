@@ -1,3 +1,4 @@
+const {authenticateToken} = require("../auth/auth");
 const ObjectId = require('mongodb').ObjectId;
 const express = require('express');
 const db = import("../db/connection.mjs");
@@ -17,15 +18,21 @@ let storage = multer.diskStorage(
 );
 const upload = multer( { storage: storage })
 
+// router.use(authenticateToken)
+
 
 router.post("/", async (req, res) => {
     let collection = (await db).default.collection("posts");
     let newDocument = req.body;
     newDocument.date = new Date();
-    let result = await collection.insertOne(newDocument);
-    res.send(result).status(204);
+    await collection.insertOne(newDocument).then(result=>{
+        res.send(result).status(204);
+    }).catch(e=>{
+        res.send(e).status(500)
+    })
+
 });
-router.get("/", async (req, res) => {
+router.get("/",authenticateToken, async (req, res) => {
     let collection = (await db).default.collection("posts");
     let results = await collection.aggregate([
         {
@@ -43,11 +50,11 @@ router.get("/", async (req, res) => {
                 content: 1,
                 image: 1,
                 author_id: 1,
+                tags:1,
                 //"author_id":"$user._id",
                 author_first_name:"$user.first_name",
                 author_last_name:"$user.last_name",
                 author_avatar:"$user.avatar",
-
                 date: 1,
             },
         },
@@ -57,7 +64,7 @@ router.get("/", async (req, res) => {
 
     res.send(results).status(200);
 });
-router.get("/latest", async (req, res) => {
+router.get("/latest", authenticateToken, async (req, res) => {
     let collection = (await db).default.collection("posts");
     let results = await collection.aggregate([
         {"$project": {"author": 1, "title": 1, "tags": 1, "date": 1}},
@@ -67,7 +74,7 @@ router.get("/latest", async (req, res) => {
     res.send(results).status(200);
 });
 
-router.get('/:id', async (req, res) => {
+router.get('/:id', authenticateToken, async (req, res) => {
     let collection = (await db).default.collection("posts");
     let results = await collection.aggregate([
         {"$match":{_id:new ObjectId(req.params.id)}},
@@ -97,7 +104,7 @@ router.get('/:id', async (req, res) => {
     res.send(results).status(200);
 })
 
-router.put('/update',async (req,res) => {
+router.put('/update', authenticateToken, async (req,res) => {
     let collection = (await db).default.collection('posts')
     console.log("id",req.body._id)
     console.log("object id",new ObjectId(req.body._id))
@@ -120,14 +127,14 @@ router.put('/update',async (req,res) => {
 
 })
 
-router.delete('/',async function (req, res) {
+router.delete('/', authenticateToken,async function (req, res) {
     let collection = (await db).default.collection('posts')
     await collection.deleteOne({_id: new ObjectId(req.body._id)}).then(result=>{
         res.send(result).status(200)
     }).catch(e=>res.send(e).status(500))
 })
 
-router.post('/upload', upload.single('file'),function (req, res) {
+router.post('/upload', authenticateToken, upload.single('file'),function (req, res) {
     res.send({status:"success",link:`${base_url}/data/uploads/${req.file.filename}`})
 });
 
